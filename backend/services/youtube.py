@@ -75,25 +75,72 @@ class YouTubeService:
                     percent = 0
                 progress_callback(percent)
 
-        ydl_opts = {
-            'format': format_map.get(quality, "best[height<=720]"),
-            'outtmpl': str(output_path),
-            'quiet': False,
-            'no_warnings': True,
-            'progress_hooks': [progress_hook],
-        }
+        # 不同客戶端配置，用於處理 SABR 串流問題
+        client_configs = [
+            # 嘗試 Android 客戶端（通常最穩定）
+            {
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android'],
+                    }
+                }
+            },
+            # 嘗試 TV 客戶端
+            {
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['tv'],
+                    }
+                }
+            },
+            # 最後嘗試 web 客戶端（最通用但可能被阻擋）
+            {
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['web'],
+                    }
+                }
+            },
+        ]
 
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+        last_error = None
 
-            return {
-                'video_id': video_id,
-                'video_path': str(output_path),
-                'quality': quality
+        for i, client_config in enumerate(client_configs):
+            ydl_opts = {
+                'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]',
+                'outtmpl': str(output_path),
+                'quiet': False,
+                'no_warnings': True,
+                'progress_hooks': [progress_hook],
+                'geo_bypass': True,
+                **client_config,
+                # 若有登入 cookies，可取消註解以下行
+                # 'cookies': str(Path('../cookies.txt')),
             }
-        except Exception as e:
-            raise Exception(f"Failed to download video: {str(e)}")
+
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+
+                return {
+                    'video_id': video_id,
+                    'video_path': str(output_path),
+                    'quality': quality
+                }
+            except Exception as e:
+                error_str = str(e)
+                last_error = e
+
+                # 如果是 403 錯誤，嘗試下一個客戶端
+                if 'HTTP Error 403' in error_str or '403' in error_str:
+                    print(f"Client {i+1} failed with 403, trying next client...")
+                    continue
+                # 其他錯誤直接拋出
+                else:
+                    raise Exception(f"Failed to download video: {error_str}")
+
+        # 所有客戶端都失敗
+        raise Exception(f"Failed to download video after trying all clients: {str(last_error)}")
 
     def get_best_subtitle_language(self, url: str) -> str:
         """

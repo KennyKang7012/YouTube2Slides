@@ -2,7 +2,7 @@
 name = "youtube-to-readable-backend"
 version = "1.0.0"
 description = "YouTube to Readable Slides - Backend API"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.104.1",
     "uvicorn[standard]>=0.24.0",
