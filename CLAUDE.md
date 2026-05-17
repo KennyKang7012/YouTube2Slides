@@ -72,9 +72,14 @@ npm start
 - `POST /api/video/info`: 取得影片資訊
 - `POST /api/video/process`: 處理影片（主要端點）
 - `GET /api/jobs/{job_id}`: 查詢任務狀態
-- `GET /api/video/history`: 取得處理歷史記錄
-- `DELETE /api/video/history/{video_id}`: 刪除歷史記錄與檔案
-- `GET /api/download/{job_id}`: 下載打包檔案（frames + subtitles）
+- `GET /api/videos/history`: 取得處理歷史記錄
+- `DELETE /api/video/{video_id}`: 刪除歷史記錄與檔案
+- `GET /api/video/{video_id}/download-frames`: 下載影格 ZIP 包
+- `POST /api/translate`: 翻譯文字
+- `GET /api/languages`: 獲取支援語言
+- `GET /api/ai-providers`: 獲取可用 AI 提供商
+- `GET /api/ollama/models`: 獲取 Ollama 本機模型列表
+- `GET /health`: 服務健康檢查
 
 **重要邏輯**:
 - **AI 翻譯觸發條件** (`app.py:456`): 需要 `request.generate_outline and request.ai_provider`
