@@ -6,6 +6,7 @@
 - 智慧斷句與字幕最佳化(支援中/日/韓等 CJK 字元)。
 - 擷取關鍵畫面,生成「逐頁幻燈片」觀看流程。
 - 可選擇翻譯與 AI 產生影片大綱(支援 OpenAI / Claude / Gemini / 本機 Ollama)。
+- AI 語音辨識生成字幕(支援 OpenAI Whisper 與 Groq Whisper,無字幕影片適用)。
 
 ## 功能特色
 
@@ -29,6 +30,19 @@
 
 
 
+## API Key 設定
+
+AI 功能需要在 `backend/.env` 設定對應的 API Key（參考 `backend/.env.example`）：
+
+| 環境變數 | 用途 |
+|---------|------|
+| `OPENAI_API_KEY` | AI 翻譯/大綱（OpenAI）、Whisper 語音辨識 |
+| `ANTHROPIC_API_KEY` | AI 翻譯/大綱（Claude） |
+| `GEMINI_API_KEY` | AI 翻譯/大綱（Gemini） |
+| `GROQ_API_KEY` | Whisper 語音辨識（Groq，速度更快） |
+
+> API Key 也可以在 UI 上直接輸入，優先於環境變數。若伺服器已設定環境變數，UI 欄位可留空。
+
 ## 🚀 快速啟動說明
 
 
@@ -36,7 +50,7 @@
 
 
 #### 🔧 前置準備(必須)
-1. **安裝 Python 3.9+**
+1. **安裝 Python 3.11+**
    - [下載連結](https://www.python.org/downloads/)
    - 安裝時請勾選 **「Add Python to PATH」**
 
@@ -108,7 +122,7 @@
 ### 🍏 macOS / Linux 用戶
 
 #### 🔧 前置準備
-1. **安裝 Python 3.9+、Node.js 16+、ffmpeg**
+1. **安裝 Python 3.11+、Node.js 16+、ffmpeg**
    - macOS: `brew install python node ffmpeg`
    - Ubuntu/Debian: `sudo apt install python3 nodejs npm ffmpeg`
 
@@ -240,7 +254,9 @@ Error: ffmpeg not found
 Error: No subtitles available
 ```
 **解決方案**:
-- 使用 OpenAI Whisper 模型辨識音頻 (需申請 API Key)
+- 勾選「使用 AI 生成字幕」，選擇 Whisper 提供商：
+  - **OpenAI**：使用 `whisper-1`，需要 OpenAI API Key
+  - **Groq**：使用 `whisper-large-v3-turbo`，速度更快，需要 Groq API Key（[免費申請](https://console.groq.com/)）
 
 ### CORS 錯誤
 ```

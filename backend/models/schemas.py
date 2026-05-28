@@ -50,6 +50,12 @@ class AIProvider(str, Enum):
     OLLAMA = "ollama"
 
 
+class WhisperProvider(str, Enum):
+    """Whisper transcription providers"""
+    OPENAI = "openai"
+    GROQ = "groq"
+
+
 class ScreenshotPosition(str, Enum):
     """Screenshot position within subtitle segment"""
     START = "start"
@@ -69,8 +75,9 @@ class ProcessVideoRequest(BaseModel):
     ai_provider: Optional[AIProvider] = Field(default=None, description="AI provider for outline generation")
     ai_model: Optional[str] = Field(default=None, description="AI model to use")
     api_key: Optional[str] = Field(default=None, description="API key for AI provider")
-    use_ai_transcription: bool = Field(default=False, description="Use OpenAI Whisper for audio transcription")
-    whisper_api_key: Optional[str] = Field(default=None, description="OpenAI API key for Whisper transcription")
+    use_ai_transcription: bool = Field(default=False, description="Use Whisper for audio transcription")
+    whisper_provider: WhisperProvider = Field(default=WhisperProvider.OPENAI, description="Whisper provider")
+    whisper_api_key: Optional[str] = Field(default=None, description="API key for Whisper provider")
 
 
 class SubtitleSegment(BaseModel):

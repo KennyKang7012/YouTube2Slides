@@ -38,6 +38,7 @@ sqlalchemy>=2.0.23
 openai>=1.12.0
 anthropic>=0.18.0
 google-generativeai>=0.3.0
+groq>=0.8.0
 ```
 
 把上面的文字存到 **`backend/requirements.txt`**（或專案根目錄），之後在升級後的環境執行：

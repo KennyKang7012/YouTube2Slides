@@ -270,19 +270,21 @@ def process_video_task(job_id: str, request: ProcessVideoRequest):
             progress=38,
             message="取得字幕中..."
         )
-        if request.use_ai_transcription and request.whisper_api_key:
+        if request.use_ai_transcription:
+            provider = request.whisper_provider.value if request.whisper_provider else "openai"
             log_job_progress(
                 job_id,
                 step="ai_transcription",
                 progress=40,
-                message="使用 Whisper 產生字幕..."
+                message=f"使用 Whisper ({provider}) 產生字幕..."
             )
             try:
                 transcription_result = audio_transcription_service.transcribe_video(
                     video_path=video_path,
                     video_id=video_id,
                     api_key=request.whisper_api_key,
-                    language=None  # Auto-detect
+                    language=None,  # Auto-detect
+                    provider=provider
                 )
 
                 subtitle_path = transcription_result['subtitle_path']

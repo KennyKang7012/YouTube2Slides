@@ -15,6 +15,7 @@ function VideoInput({ onSubmit }) {
   const [ollamaModels, setOllamaModels] = useState([]);
   const [loadingOllamaModels, setLoadingOllamaModels] = useState(false);
   const [useAiTranscription, setUseAiTranscription] = useState(false);
+  const [whisperProvider, setWhisperProvider] = useState('openai');
   const [whisperApiKey, setWhisperApiKey] = useState('');
   const [screenshotSettingsExpanded, setScreenshotSettingsExpanded] = useState(false);
 
@@ -31,6 +32,7 @@ function VideoInput({ onSubmit }) {
       if (savedSettings.aiModel) setAiModel(savedSettings.aiModel);
       if (savedSettings.apiKey) setApiKey(savedSettings.apiKey);
       if (savedSettings.useAiTranscription !== undefined) setUseAiTranscription(savedSettings.useAiTranscription);
+      if (savedSettings.whisperProvider) setWhisperProvider(savedSettings.whisperProvider);
       if (savedSettings.whisperApiKey) setWhisperApiKey(savedSettings.whisperApiKey);
     }
   }, []);
@@ -75,12 +77,6 @@ function VideoInput({ onSubmit }) {
       return;
     }
 
-    // Validation: Check if Whisper API key is provided when AI transcription is enabled
-    if (useAiTranscription && !whisperApiKey.trim()) {
-      alert('請輸入 OpenAI API Key 以使用 AI 字幕生成');
-      return;
-    }
-
     // Save current settings
     const currentSettings = {
       quality,
@@ -92,6 +88,7 @@ function VideoInput({ onSubmit }) {
       aiModel,
       apiKey,
       useAiTranscription,
+      whisperProvider,
       whisperApiKey
     };
     saveSettings(currentSettings);
@@ -108,6 +105,7 @@ function VideoInput({ onSubmit }) {
       ai_model: generateOutline ? aiModel : null,
       api_key: generateOutline ? apiKey : null,
       use_ai_transcription: useAiTranscription,
+      whisper_provider: useAiTranscription ? whisperProvider : null,
       whisper_api_key: useAiTranscription ? whisperApiKey : null,
     });
   };
@@ -229,16 +227,25 @@ function VideoInput({ onSubmit }) {
         {useAiTranscription && (
           <div className="ai-config-section">
             <div className="form-group">
-              <label>OpenAI API Key（用於 Whisper 語音辨識）</label>
+              <label>Whisper 服務提供商</label>
+              <select value={whisperProvider} onChange={(e) => setWhisperProvider(e.target.value)}>
+                <option value="openai">OpenAI（whisper-1）</option>
+                <option value="groq">Groq（whisper-large-v3-turbo，更快速）</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>
+                {whisperProvider === 'groq' ? 'Groq API Key' : 'OpenAI API Key'}（用於 Whisper 語音辨識）
+              </label>
               <input
                 type="password"
                 value={whisperApiKey}
                 onChange={(e) => setWhisperApiKey(e.target.value)}
-                placeholder="sk-..."
+                placeholder={whisperProvider === 'groq' ? 'gsk_...' : 'sk-...'}
                 className="api-key-input"
               />
               <small className="help-text">
-                💡 使用 OpenAI Whisper 模型從影片音訊生成字幕。您的 API Key 僅用於此次請求，不會儲存於伺服器
+                💡 您的 API Key 僅用於此次請求，不會儲存於伺服器。若伺服器已設定環境變數可留空。
               </small>
             </div>
             <div className="info-box" style={{marginTop: '1rem'}}>

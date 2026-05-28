@@ -58,12 +58,15 @@ Exception: No subtitles available for this video. Try enabling 'AI字幕生成' 
 
 #### 選項 A：使用 AI 字幕生成（Whisper）
 
-當 YouTube 沒有字幕時，可使用 OpenAI Whisper 進行語音辨識生成字幕：
+當 YouTube 沒有字幕時，可使用 Whisper 進行語音辨識生成字幕：
 
 1. 在前端勾選「**使用 AI 生成字幕（無字幕或字幕品質不佳時適用）**」
-2. 輸入 **OpenAI API Key**（用於 Whisper 語音辨識）
+2. 選擇 **Whisper 服務提供商**：
+   - **OpenAI**（`whisper-1`）：穩定，輸入 OpenAI API Key（`sk-...`）
+   - **Groq**（`whisper-large-v3-turbo`）：速度更快、費用更低，輸入 Groq API Key（`gsk_...`，[免費申請](https://console.groq.com/)）
 3. 重新執行影片處理
 
+> API Key 也可以設定在 `backend/.env`（`OPENAI_API_KEY` 或 `GROQ_API_KEY`），UI 欄位留空即可自動使用。  
 > 注意：Whisper 會消耗 API 額度，但能處理任何影片的音訊。
 
 #### 選項 B：更換 YouTube 影片

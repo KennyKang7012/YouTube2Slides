@@ -1,18 +1,21 @@
 """
-OpenAI Whisper audio transcription service
-Extracts audio from video and transcribes using Whisper API
+Whisper audio transcription service
+Supports OpenAI (whisper-1) and Groq (whisper-large-v3-turbo)
 """
 import os
 import subprocess
 from pathlib import Path
 from typing import Dict, Optional
 from openai import OpenAI
+from groq import Groq
 
 
 class AudioTranscriptionService:
-    """Service for transcribing audio using OpenAI Whisper"""
+    """Service for transcribing audio using Whisper API"""
 
     def __init__(self):
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
         self.audio_dir = Path("../storage/audio")
         self.audio_dir.mkdir(parents=True, exist_ok=True)
         self.subtitle_dir = Path("../storage/subtitles")
@@ -31,21 +34,16 @@ class AudioTranscriptionService:
         """
         audio_path = self.audio_dir / f"{video_id}.mp3"
 
-        # Use ffmpeg to extract audio
-        # -vn: no video
-        # -acodec libmp3lame: use MP3 codec
         # -ar 16000: 16kHz sample rate (optimal for Whisper)
-        # -ac 1: mono channel
-        # -b:a 64k: 64kbps bitrate
         cmd = [
             'ffmpeg',
             '-i', video_path,
-            '-vn',  # No video
+            '-vn',
             '-acodec', 'libmp3lame',
-            '-ar', '16000',  # 16kHz for Whisper
-            '-ac', '1',  # Mono
+            '-ar', '16000',
+            '-ac', '1',
             '-b:a', '64k',
-            '-y',  # Overwrite output file
+            '-y',
             str(audio_path)
         ]
 
@@ -60,44 +58,82 @@ class AudioTranscriptionService:
     def transcribe_audio(
         self,
         audio_path: str,
-        api_key: str,
-        language: Optional[str] = None
+        api_key: Optional[str] = None,
+        language: Optional[str] = None,
+        provider: str = "openai"
     ) -> Dict:
         """
-        Transcribe audio using OpenAI Whisper API
+        Transcribe audio using Whisper API
 
         Args:
             audio_path: Path to audio file
-            api_key: OpenAI API key
+            api_key: API key (falls back to OPENAI_API_KEY / GROQ_API_KEY env var)
             language: Language code (e.g., 'en', 'zh', 'ja'). Auto-detect if None.
+            provider: "openai" or "groq"
 
         Returns:
             Dict with transcription text and segments
         """
         try:
-            client = OpenAI(api_key=api_key)
-
-            with open(audio_path, 'rb') as audio_file:
-                # Use Whisper API for transcription
-                # response_format='verbose_json' gives us timestamps
-                # timestamp_granularities=['segment'] provides better sentence-level segmentation
-                transcription = client.audio.transcriptions.create(
-                    model="whisper-1",
-                    file=audio_file,
-                    response_format="verbose_json",
-                    timestamp_granularities=["segment"],  # Sentence-level timestamps
-                    language=language  # None for auto-detection
-                )
-
-            return {
-                'text': transcription.text,
-                'language': transcription.language,
-                'duration': transcription.duration,
-                'segments': transcription.segments
-            }
-
+            if provider == "groq":
+                return self._transcribe_with_groq(audio_path, api_key, language)
+            else:
+                return self._transcribe_with_openai(audio_path, api_key, language)
         except Exception as e:
             raise Exception(f"Whisper transcription failed: {str(e)}")
+
+    def _transcribe_with_openai(
+        self,
+        audio_path: str,
+        api_key: Optional[str],
+        language: Optional[str]
+    ) -> Dict:
+        used_api_key = api_key or self.openai_api_key
+        if not used_api_key:
+            raise Exception("OpenAI API key is required. Provide it in the UI or set OPENAI_API_KEY in backend/.env")
+
+        client = OpenAI(api_key=used_api_key)
+        with open(audio_path, 'rb') as audio_file:
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="verbose_json",
+                timestamp_granularities=["segment"],
+                language=language
+            )
+
+        return {
+            'text': transcription.text,
+            'language': transcription.language,
+            'duration': transcription.duration,
+            'segments': transcription.segments
+        }
+
+    def _transcribe_with_groq(
+        self,
+        audio_path: str,
+        api_key: Optional[str],
+        language: Optional[str]
+    ) -> Dict:
+        used_api_key = api_key or self.groq_api_key
+        if not used_api_key:
+            raise Exception("Groq API key is required. Provide it in the UI or set GROQ_API_KEY in backend/.env")
+
+        client = Groq(api_key=used_api_key)
+        with open(audio_path, 'rb') as audio_file:
+            transcription = client.audio.transcriptions.create(
+                model="whisper-large-v3-turbo",
+                file=audio_file,
+                response_format="verbose_json",
+                language=language
+            )
+
+        return {
+            'text': transcription.text,
+            'language': transcription.language,
+            'duration': transcription.duration,
+            'segments': transcription.segments
+        }
 
     def save_transcription_as_srt(
         self,
@@ -122,12 +158,6 @@ class AudioTranscriptionService:
 
         with open(srt_path, 'w', encoding='utf-8') as f:
             for i, segment in enumerate(segments, 1):
-                # SRT format:
-                # 1
-                # 00:00:00,000 --> 00:00:05,000
-                # Subtitle text
-
-                # Whisper segments are objects, use attribute access
                 start_time = self._format_timestamp_srt(segment.start)
                 end_time = self._format_timestamp_srt(segment.end)
                 text = segment.text.strip()
@@ -139,28 +169,19 @@ class AudioTranscriptionService:
         return str(srt_path)
 
     def _format_timestamp_srt(self, seconds: float) -> str:
-        """
-        Format timestamp for SRT format (HH:MM:SS,mmm)
-
-        Args:
-            seconds: Time in seconds
-
-        Returns:
-            Formatted timestamp string
-        """
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
         secs = int(seconds % 60)
         millis = int((seconds % 1) * 1000)
-
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
     def transcribe_video(
         self,
         video_path: str,
         video_id: str,
-        api_key: str,
-        language: Optional[str] = None
+        api_key: Optional[str] = None,
+        language: Optional[str] = None,
+        provider: str = "openai"
     ) -> Dict:
         """
         Complete workflow: Extract audio, transcribe, and save as SRT
@@ -168,27 +189,20 @@ class AudioTranscriptionService:
         Args:
             video_path: Path to video file
             video_id: Video ID
-            api_key: OpenAI API key
+            api_key: API key (falls back to env var)
             language: Target language (None for auto-detect)
+            provider: "openai" or "groq"
 
         Returns:
             Dict with subtitle path and transcription info
         """
-        # Step 1: Extract audio
         audio_path = self.extract_audio_from_video(video_path, video_id)
 
-        # Step 2: Transcribe audio
-        transcription = self.transcribe_audio(audio_path, api_key, language)
+        transcription = self.transcribe_audio(audio_path, api_key, language, provider)
 
-        # Step 3: Save as SRT
         detected_lang = transcription['language']
-        srt_path = self.save_transcription_as_srt(
-            transcription,
-            video_id,
-            detected_lang
-        )
+        srt_path = self.save_transcription_as_srt(transcription, video_id, detected_lang)
 
-        # Clean up audio file
         try:
             os.remove(audio_path)
         except:
