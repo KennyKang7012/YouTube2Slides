@@ -84,3 +84,46 @@ used_api_key = api_key or self.groq_api_key    # Groq
 - 音訊暫存於 `storage/audio/{video_id}.mp3`，轉錄完成後自動刪除
 - 語言自動偵測（`language=None`），也可透過前端字幕語言設定指定
 - Groq 免費方案有每分鐘請求數限制，長影片建議使用 OpenAI 或付費方案
+
+---
+
+## 已知問題與修正
+
+### `.env` API Key 無法生效（2026-05-30 修正）
+
+**症狀**
+
+在 `backend/.env` 設定 `GROQ_API_KEY`（或其他 Key），UI 欄位留空，執行 AI 字幕生成時仍報錯：
+
+```
+Groq API key is required. Provide it in the UI or set GROQ_API_KEY in backend/.env
+```
+
+**根本原因**
+
+`app.py` 從未呼叫 `load_dotenv()`，`.env` 檔案的內容永遠不會被載入到環境變數。
+各 service 在 module 初始化時執行 `os.getenv("GROQ_API_KEY")` 拿到的永遠是 `None`，
+UI 留空時 fallback 也是 `None`，因此報錯。
+
+此 bug 影響所有透過 `.env` 設定的 Key：
+
+| 環境變數 | 影響功能 |
+|---|---|
+| `GROQ_API_KEY` | Groq Whisper 字幕生成 |
+| `OPENAI_API_KEY` | OpenAI Whisper 字幕生成、AI 翻譯/大綱 |
+| `ANTHROPIC_API_KEY` | Claude AI 翻譯/大綱 |
+| `GEMINI_API_KEY` | Gemini AI 翻譯/大綱 |
+
+**修正方式**
+
+在 `backend/app.py` 所有 service 初始化之前加入：
+
+```python
+from dotenv import load_dotenv
+load_dotenv()  # Must be called before any os.getenv() in service __init__
+```
+
+**為什麼 UI 直接輸入 Key 可以繞過此問題**
+
+UI 輸入的 Key 透過 `request.whisper_api_key` 直接傳入，不經過 `os.getenv()`，
+因此即使 `.env` 未載入也能正常運作。修正後，UI 留空才能正確 fallback 到 `.env`。
