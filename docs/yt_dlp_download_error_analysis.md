@@ -99,4 +99,73 @@ ydl_opts = {
 4. 成功產生 `storage/videos/<video_id>.mp4` 表示問題已解決。
 
 ---
+
+## 問題 3：1080p 畫質無法使用（2026-05-30 修正）
+
+### 問題描述
+
+前端雖然提供 1080p 選項，但實際上有兩個 bug 導致根本無法正常運作：
+
+**Bug 1 — `schemas.py` 缺少 1080p enum 值**
+
+`VideoQuality` enum 只定義到 720p，導致前端送出 `quality: "1080"` 時後端直接回傳 422 驗證錯誤：
+
+```python
+# 修正前（只有三個值）
+class VideoQuality(str, Enum):
+    Q360 = "360"
+    Q480 = "480"
+    Q720 = "720"
+```
+
+**Bug 2 — `youtube.py` format 硬寫死 720p**
+
+`download_video()` 雖然定義了 `format_map`，但實際下載時完全沒有使用，format 永遠是 720p：
+
+```python
+# 修正前：format_map 定義了卻沒用到
+format_map = {
+    "360": "best[height<=360]",
+    ...
+    "1080": "best[height<=1080]",   # ← 從未被使用
+}
+ydl_opts = {
+    'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]',  # ← 永遠 720p
+    ...
+}
+```
+
+### 解決方案（已實作）
+
+**修正 `backend/models/schemas.py`**：補上 `Q1080`
+
+```python
+class VideoQuality(str, Enum):
+    Q360 = "360"
+    Q480 = "480"
+    Q720 = "720"
+    Q1080 = "1080"   # 新增
+```
+
+**修正 `backend/services/youtube.py`**：改用 `bestvideo+bestaudio` 格式並實際套用 quality 參數
+
+```python
+format_map = {
+    "360": "bestvideo[height<=360]+bestaudio/best[height<=360]",
+    "480": "bestvideo[height<=480]+bestaudio/best[height<=480]",
+    "720": "bestvideo[height<=720]+bestaudio/best[height<=720]",
+    "1080": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+}
+selected_format = format_map.get(quality, format_map["720"])
+
+ydl_opts = {
+    'format': selected_format,   # 正確套用使用者選擇的畫質
+    ...
+}
+```
+
+> `bestvideo+bestaudio` 格式支援 YouTube 的 DASH 分離串流，1080p 影片通常以此方式提供；原本的 `best[height<=XXX]` 只能選到合併好的單一檔案，在 1080p 通常找不到。
+
+---
+
 *以上為對錯誤原因的分析、解決方案與程式碼範例，已保存於此文件供後續升級 Python 3.11 時參考。*
