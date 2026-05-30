@@ -231,6 +231,25 @@ def process_video_task(job_id: str, request: ProcessVideoRequest):
             message="影片資訊擷取完成"
         )
 
+        # Check for cached result — skip all processing if already done
+        result_file = RESULTS_DIR / f"{video_id}.json"
+        if result_file.exists():
+            try:
+                with open(result_file, 'r', encoding='utf-8') as f:
+                    cached = json.load(f)
+                cached_result = cached.get('result', {})
+                jobs[job_id]["result"] = cached_result
+                log_job_progress(
+                    job_id,
+                    step="complete",
+                    status=JobStatus.COMPLETED,
+                    progress=100,
+                    message="已載入快取結果，略過重新處理"
+                )
+                return
+            except Exception as e:
+                print(f"[Cache] Failed to load cached result for {video_id}, proceeding with full processing: {e}")
+
         log_job_progress(
             job_id,
             step="download_video",
