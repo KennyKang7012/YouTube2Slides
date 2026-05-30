@@ -74,13 +74,14 @@ RESULTS_DIR = Path("../storage/results")
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def save_result_to_file(job_id: str, video_id: str, result_data: dict):
+def save_result_to_file(job_id: str, video_id: str, result_data: dict, quality: str = "720"):
     """Save processing result to a JSON file for persistence"""
     try:
-        result_file = RESULTS_DIR / f"{video_id}.json"
+        result_file = RESULTS_DIR / f"{video_id}_{quality}.json"
         result_with_metadata = {
             "job_id": job_id,
             "video_id": video_id,
+            "quality": quality,
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "result": result_data
         }
@@ -231,8 +232,9 @@ def process_video_task(job_id: str, request: ProcessVideoRequest):
             message="影片資訊擷取完成"
         )
 
-        # Check for cached result — skip all processing if already done
-        result_file = RESULTS_DIR / f"{video_id}.json"
+        # Check for cached result — skip all processing if already done (quality-aware)
+        quality = request.quality.value
+        result_file = RESULTS_DIR / f"{video_id}_{quality}.json"
         if result_file.exists():
             try:
                 with open(result_file, 'r', encoding='utf-8') as f:
@@ -656,7 +658,7 @@ def process_video_task(job_id: str, request: ProcessVideoRequest):
         jobs[job_id]["result"] = result_dict
 
         # Save result to file for persistence
-        save_result_to_file(job_id, video_id, result_dict)
+        save_result_to_file(job_id, video_id, result_dict, quality=request.quality.value)
 
         log_job_progress(
             job_id,
@@ -848,11 +850,12 @@ async def delete_video(video_id: str):
                 subtitle_file.unlink()
                 deleted_items["subtitles"] += 1
 
-        # Delete result JSON
-        result_path = Path(f"../storage/results/{video_id}.json")
-        if result_path.exists():
-            result_path.unlink()
-            deleted_items["results"] = True
+        # Delete result JSON (all quality variants)
+        result_files = list(RESULTS_DIR.glob(f"{video_id}_*.json")) + [RESULTS_DIR / f"{video_id}.json"]
+        for result_path in result_files:
+            if result_path.exists():
+                result_path.unlink()
+                deleted_items["results"] = True
 
         return {
             "message": "Video and associated files deleted successfully",
