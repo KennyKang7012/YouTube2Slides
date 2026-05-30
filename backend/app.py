@@ -2,6 +2,9 @@
 FastAPI main application
 YouTube to Readable Slides Converter
 """
+from dotenv import load_dotenv
+load_dotenv()  # Must be called before any os.getenv() in service __init__
+
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
