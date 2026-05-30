@@ -56,13 +56,14 @@ class YouTubeService:
         video_id = self._extract_video_id(url)
         output_path = self.download_path / f"{video_id}.mp4"
 
-        # Quality format mapping
+        # Quality format mapping (bestvideo+bestaudio supports 1080p DASH streams)
         format_map = {
-            "360": "best[height<=360]",
-            "480": "best[height<=480]",
-            "720": "best[height<=720]",
-            "1080": "best[height<=1080]",
+            "360": "bestvideo[height<=360]+bestaudio/best[height<=360]",
+            "480": "bestvideo[height<=480]+bestaudio/best[height<=480]",
+            "720": "bestvideo[height<=720]+bestaudio/best[height<=720]",
+            "1080": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
         }
+        selected_format = format_map.get(quality, format_map["720"])
 
         def progress_hook(d):
             if progress_callback and d['status'] == 'downloading':
@@ -107,7 +108,7 @@ class YouTubeService:
 
         for i, client_config in enumerate(client_configs):
             ydl_opts = {
-                'format': 'bestvideo[height<=720]+bestaudio/best[height<=720]',
+                'format': selected_format,
                 'outtmpl': str(output_path),
                 'quiet': False,
                 'no_warnings': True,
