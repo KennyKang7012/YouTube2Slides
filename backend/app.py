@@ -459,71 +459,89 @@ def process_video_task(job_id: str, request: ProcessVideoRequest):
         translated_subtitle_texts = None
         translated_subtitle_path = None
         if request.translate_to:
-            log_job_progress(
-                job_id,
-                step="translate",
-                progress=68,
-                message=f"翻譯字幕成 {request.translate_to}..."
-            )
+            translated_subtitle_dir = Path("../storage/subtitles")
+            translated_subtitle_path = str(translated_subtitle_dir / f"{video_id}.{request.translate_to}.translated.srt")
 
-            def translation_progress(percent):
-                # Map translation progress (0-100%) to job progress (68-72%)
-                job_progress = 68 + int(percent * 0.04)
+            # Reuse existing translation — subtitles are quality-independent, no need to re-translate
+            if Path(translated_subtitle_path).exists():
+                try:
+                    cached_segs = subtitle_processor.parse_srt(translated_subtitle_path)
+                    cached_texts = [seg.text for seg in cached_segs]
+                    if len(cached_texts) == len(original_subtitle_texts):
+                        translated_subtitle_texts = cached_texts
+                        log_job_progress(
+                            job_id,
+                            step="translate",
+                            progress=72,
+                            message="已載入快取翻譯，略過重新翻譯"
+                        )
+                    else:
+                        print(f"[Cache] Translation cache length mismatch ({len(cached_texts)} vs {len(original_subtitle_texts)}), will re-translate")
+                except Exception as e:
+                    print(f"[Cache] Failed to load cached translation: {e}, will re-translate")
+
+            if translated_subtitle_texts is None:
                 log_job_progress(
                     job_id,
                     step="translate",
-                    progress=job_progress,
-                    message=f"翻譯字幕中... {int(percent)}%"
+                    progress=68,
+                    message=f"翻譯字幕成 {request.translate_to}..."
                 )
 
-            if request.generate_outline and request.ai_provider:
-                try:
+                def translation_progress(percent):
+                    # Map translation progress (0-100%) to job progress (68-72%)
+                    job_progress = 68 + int(percent * 0.04)
                     log_job_progress(
                         job_id,
                         step="translate",
-                        progress=69,
-                        message=f"使用 {request.ai_provider.value} 翻譯字幕..."
+                        progress=job_progress,
+                        message=f"翻譯字幕中... {int(percent)}%"
                     )
-                    translated_subtitle_texts = ai_translator.translate_batch(
-                        original_subtitle_texts,
-                        source_lang=primary_lang,
-                        target_lang=request.translate_to,
-                        provider=request.ai_provider,
-                        model=request.ai_model,
-                        api_key=request.api_key
-                    )
-                except Exception as e:
-                    print(f"AI translation failed, falling back to Google Translate: {str(e)}")
+
+                if request.generate_outline and request.ai_provider:
+                    try:
+                        log_job_progress(
+                            job_id,
+                            step="translate",
+                            progress=69,
+                            message=f"使用 {request.ai_provider.value} 翻譯字幕..."
+                        )
+                        translated_subtitle_texts = ai_translator.translate_batch(
+                            original_subtitle_texts,
+                            source_lang=primary_lang,
+                            target_lang=request.translate_to,
+                            provider=request.ai_provider,
+                            model=request.ai_model,
+                            api_key=request.api_key
+                        )
+                    except Exception as e:
+                        print(f"AI translation failed, falling back to Google Translate: {str(e)}")
+                        translated_subtitle_texts = translator.batch_translate(
+                            original_subtitle_texts,
+                            source_lang=primary_lang,
+                            target_lang=request.translate_to,
+                            progress_callback=translation_progress
+                        )
+                else:
                     translated_subtitle_texts = translator.batch_translate(
                         original_subtitle_texts,
                         source_lang=primary_lang,
                         target_lang=request.translate_to,
                         progress_callback=translation_progress
                     )
-            else:
-                translated_subtitle_texts = translator.batch_translate(
-                    original_subtitle_texts,
-                    source_lang=primary_lang,
-                    target_lang=request.translate_to,
-                    progress_callback=translation_progress
+
+                with open(translated_subtitle_path, 'w', encoding='utf-8') as f:
+                    for i, (seg, text) in enumerate(zip(segments, translated_subtitle_texts)):
+                        f.write(f"{i + 1}\n")
+                        f.write(f"{subtitle_processor._format_timestamp(seg.start_time)} --> {subtitle_processor._format_timestamp(seg.end_time)}\n")
+                        f.write(f"{text}\n\n")
+
+                log_job_progress(
+                    job_id,
+                    step="translate",
+                    progress=72,
+                    message="字幕翻譯完成"
                 )
-
-            from pathlib import Path
-            translated_subtitle_dir = Path("../storage/subtitles")
-            translated_subtitle_path = str(translated_subtitle_dir / f"{video_id}.{request.translate_to}.translated.srt")
-
-            with open(translated_subtitle_path, 'w', encoding='utf-8') as f:
-                for i, (seg, text) in enumerate(zip(segments, translated_subtitle_texts)):
-                    f.write(f"{i + 1}\n")
-                    f.write(f"{subtitle_processor._format_timestamp(seg.start_time)} --> {subtitle_processor._format_timestamp(seg.end_time)}\n")
-                    f.write(f"{text}\n\n")
-
-            log_job_progress(
-                job_id,
-                step="translate",
-                progress=72,
-                message="字幕翻譯完成"
-            )
         else:
             log_job_progress(
                 job_id,

@@ -73,9 +73,43 @@ except Exception as e:
     print(f"[Cache] Failed to load cached result for {video_id}, proceeding with full processing: {e}")
 ```
 
+---
+
+## 翻譯快取（跨畫質共用）
+
+翻譯結果與畫質無關，只取決於影片字幕內容。因此翻譯快取採用**不含畫質**的獨立命名：
+
+```
+storage/subtitles/{video_id}.{lang}.translated.srt
+```
+
+在翻譯步驟執行前，先檢查此檔案是否已存在：
+
+```python
+if Path(translated_subtitle_path).exists():
+    cached_segs = subtitle_processor.parse_srt(translated_subtitle_path)
+    cached_texts = [seg.text for seg in cached_segs]
+    if len(cached_texts) == len(original_subtitle_texts):
+        translated_subtitle_texts = cached_texts
+        # 直接使用快取，跳過 API 呼叫
+```
+
+段數不吻合時（例如字幕來源有異動）會自動降級重新翻譯，不會使用錯誤的快取。
+
+### 快取命中矩陣（完整）
+
+| 操作 | 結果快取 | 翻譯快取 |
+|------|----------|----------|
+| 同影片 + 同畫質再次提交 | ✅ 命中，全部跳過 | （不會到達翻譯步驟） |
+| 同影片 + 不同畫質 | ❌ 未命中，重新處理 | ✅ 命中，翻譯跳過 |
+| 不同影片 | ❌ 未命中 | ❌ 未命中 |
+
+---
+
 ## 相關檔案
 
 | 檔案 | 說明 |
 |------|------|
-| `backend/app.py` | 快取讀取（`process_video_task`）、寫入（`save_result_to_file`）、刪除（`delete_video`） |
-| `storage/results/` | 快取 JSON 儲存目錄 |
+| `backend/app.py` | 結果快取讀取/寫入（`process_video_task`, `save_result_to_file`）、刪除（`delete_video`）、翻譯快取檢查（翻譯區塊） |
+| `storage/results/` | 結果快取 JSON 儲存目錄（含畫質，`{video_id}_{quality}.json`） |
+| `storage/subtitles/` | 翻譯快取 SRT 儲存目錄（不含畫質，`{video_id}.{lang}.translated.srt`） |
