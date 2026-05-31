@@ -158,9 +158,15 @@ class AudioTranscriptionService:
 
         with open(srt_path, 'w', encoding='utf-8') as f:
             for i, segment in enumerate(segments, 1):
-                start_time = self._format_timestamp_srt(segment.start)
-                end_time = self._format_timestamp_srt(segment.end)
-                text = segment.text.strip()
+                # Groq returns dicts; OpenAI returns objects with attributes
+                if isinstance(segment, dict):
+                    start_time = self._format_timestamp_srt(segment['start'])
+                    end_time = self._format_timestamp_srt(segment['end'])
+                    text = segment['text'].strip()
+                else:
+                    start_time = self._format_timestamp_srt(segment.start)
+                    end_time = self._format_timestamp_srt(segment.end)
+                    text = segment.text.strip()
 
                 f.write(f"{i}\n")
                 f.write(f"{start_time} --> {end_time}\n")

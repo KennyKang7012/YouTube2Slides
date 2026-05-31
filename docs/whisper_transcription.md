@@ -127,3 +127,53 @@ load_dotenv()  # Must be called before any os.getenv() in service __init__
 
 UI 輸入的 Key 透過 `request.whisper_api_key` 直接傳入，不經過 `os.getenv()`，
 因此即使 `.env` 未載入也能正常運作。修正後，UI 留空才能正確 fallback 到 `.env`。
+
+---
+
+### Groq Segments 回傳 dict 導致 AttributeError（2026-05-31 修正）
+
+**症狀**
+
+選擇 Groq 提供商執行 AI 字幕生成時，後端報錯：
+
+```
+AttributeError: 'dict' object has no attribute 'start'
+```
+
+完整錯誤路徑：
+
+```
+save_transcription_as_srt()
+  → segment.start  ← AttributeError
+```
+
+**根本原因**
+
+OpenAI SDK 的 `transcriptions.create()` 回傳的 `segments` 是**物件列表**（可用 `segment.start`），
+但 Groq SDK 回傳的 `segments` 是**dict 列表**（需用 `segment['start']`）。
+
+原始程式碼只考慮 OpenAI 格式：
+
+```python
+# 原始（只支援 OpenAI）
+start_time = self._format_timestamp_srt(segment.start)
+end_time   = self._format_timestamp_srt(segment.end)
+text       = segment.text.strip()
+```
+
+**修正方式**
+
+在 `save_transcription_as_srt()` 加入型別判斷（`audio_transcription.py:160`）：
+
+```python
+if isinstance(segment, dict):
+    start_time = self._format_timestamp_srt(segment['start'])
+    end_time   = self._format_timestamp_srt(segment['end'])
+    text       = segment['text'].strip()
+else:
+    start_time = self._format_timestamp_srt(segment.start)
+    end_time   = self._format_timestamp_srt(segment.end)
+    text       = segment.text.strip()
+```
+
+OpenAI 與 Groq 兩個提供商皆可正常產生 SRT 字幕。
